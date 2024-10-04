@@ -16,10 +16,6 @@ inputs:
   varfile:
     required: false
     type: string
-  autoformat_message:
-    default: "AutoFormat Commit"
-    type: string
-    required: false
   setup_terraform:
     type: boolean
     default: false
@@ -133,7 +129,7 @@ runs:
     - name: Terraform Init
       id: init
       if: ${{ inputs.terraform_init }}
-      run: terraform init
+      run: terraform init -upgrade
     
     - name: Generate Plan Name (non-default)
       id: plan_name_non_default
