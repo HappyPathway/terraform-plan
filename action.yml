@@ -161,7 +161,7 @@ runs:
           echo pending_changes=false >> $GITHUB_OUTPUT
         fi
 
-    - uses: actions/upload-artifact@master
+    - uses: CSVD/gh-upload-artifact@master
       name: Archive Planfile
       if: github.ref == 'refs/heads/main'
       with:
