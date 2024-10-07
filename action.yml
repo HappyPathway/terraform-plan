@@ -63,7 +63,7 @@ runs:
     - uses: actions/download-artifact@master
       if: ${{ inputs.download_cache }}
       with:
-        name: ${{ inputs.cache }}
+        name: terraform_dir
         path: terraform_data
 
     - name: mkdir .terraform
