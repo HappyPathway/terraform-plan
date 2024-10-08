@@ -99,10 +99,10 @@ runs:
 
     - name: Setup Terraform
       uses: CSVD/gh-actions-setup-terraform@3.1.2
-      if: ${{ inputs.setup_terraform && secrets.TFE_TOKEN != '' }}
+      if: ${{ inputs.setup_terraform && env.TFE_TOKEN != '' }}
       with:
         terraform_version: ${{ inputs.terraform_version }}
-        cli_config_credentials_token: ${{ secrets.TFE_TOKEN }}
+        cli_config_credentials_token: ${{ env.TFE_TOKEN }}
         cli_config_credentials_hostname: ${{ inputs.terraform_api }}
  
     - name: Setup Terraform
