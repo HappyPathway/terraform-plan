@@ -54,7 +54,7 @@ runs:
       pending_changes: ${{ steps.plan.outputs.pending_changes }}
       plan_succeeded: ${{ steps.plan.outputs.plan_succeeded }}
   steps:
-    - uses: actions/checkout@v4
+    - uses: CSVD/gh-actions-checkout@v4
       id: checkout
       with:
         ref: ${{ inputs.commit_sha == '' && github.head_ref || inputs.commit_sha }}
