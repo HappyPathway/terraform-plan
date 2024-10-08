@@ -69,14 +69,17 @@ runs:
     - name: mkdir .terraform
       if: ${{ inputs.download_cache }}
       run: mkdir .terraform
+      shell: bash
       
     - name: set TF Data Dir
       if: ${{ inputs.download_cache }}
       run: mv terraform_data/terraform_dir/* .terraform/
+      shell: bash
 
     - name: fix file permissions
       if: ${{ inputs.download_cache }}
       run: chmod -R 777 .terraform
+      shell: bash
 
     - name: download lockfile
       uses: actions/download-artifact@master
@@ -88,10 +91,12 @@ runs:
     - name: move lockfile
       if: ${{ inputs.download_cache }}
       run: mv terraform_lockfile/.terraform.lock.hcl .
+      shell: bash
 
     - name: fix file permissions
       if: ${{ inputs.download_cache }}
       run: chmod -R 600 .terraform.lock.hcl
+      shell: bash
       
     - uses: actions/setup-node@v3
       with:
@@ -113,16 +118,19 @@ runs:
 
     - name: Set Workspace
       if: ${{ inputs.workspace != '' }}
+      shell: bash
       run: |
         echo "TF_WORKSPACE=${{ inputs.workspace }}" >> $GITHUB_ENV
 
     - name: Set Varfile
       if: ${{ inputs.varfile != '' }}
+      shell: bash
       run: |
         echo "TF_CLI_ARGS='${{ env.TF_CLI_ARGS }} -var-file=${{ inputs.varfile }}" >> $GITHUB_ENV
     
     - name: Set TF_CLI_ARGS
       if: ${{ inputs.varfile != '' }}
+      shell: bash
       run: |
         echo "TF_CLI_ARGS='${{ env.TF_CLI_ARGS }} ${{ inputs.tf_cli_args }}" >> $GITHUB_ENV
         
@@ -130,9 +138,11 @@ runs:
       id: init
       if: ${{ inputs.terraform_init }}
       run: terraform init -upgrade
+      shell: bash
     
     - name: Generate Plan Name (non-default)
       id: plan_name_non_default
+      shell: bash
       run: |
         echo planfile=${{ inputs.workspace }}-${{ github.run_id }}-${{ github.run_attempt }} >> $GITHUB_ENV
         echo planfile=${{ inputs.workspace }}-${{ github.run_id }}-${{ github.run_attempt }} >> $GITHUB_OUTPUT
@@ -140,6 +150,7 @@ runs:
 
     - name: Generate Plan Name (default)
       id: plan_name_default
+      shell: bash
       run: |
         echo planfile=default-${{ github.run_id }}-${{ github.run_attempt }} >> $GITHUB_ENV
         echo planfile=default-${{ github.run_id }}-${{ github.run_attempt }} >> $GITHUB_OUTPUT
@@ -147,6 +158,7 @@ runs:
       
     - name: Terraform Plan
       id: plan
+      shell: bash
       run: |
         terraform plan -detailed-exitcode -out=${{ env.planfile }} || echo "using -detailed-exitcode"
         exit_code=$?
