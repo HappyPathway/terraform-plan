@@ -93,9 +93,9 @@ runs:
       run: chmod -R 600 .terraform.lock.hcl
       shell: bash
       
-    - uses: actions/setup-node@v3
-      with:
-        node-version: 16
+#     - uses: actions/setup-node@v3
+#       with:
+#         node-version: 16
 
     - name: Setup Terraform
       uses: CSVD/gh-actions-setup-terraform@3.1.2
@@ -177,7 +177,7 @@ runs:
         include-hidden-files: true
 
     - name: Update Pull Request
-      uses: actions/github-script@v6
+      uses: CSVD/github-script@v6
       if: github.event_name == 'pull_request'
       with:
         github-token: ${{ env.GITHUB_TOKEN }}
