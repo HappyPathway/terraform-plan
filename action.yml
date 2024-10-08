@@ -98,7 +98,7 @@ runs:
         node-version: 16
 
     - name: Setup Terraform
-      uses: CSVD/gh-actions-setup-terraform@v3.1.2
+      uses: CSVD/gh-actions-setup-terraform@3.1.2
       if: ${{ inputs.setup_terraform && secrets.TFE_TOKEN != '' }}
       with:
         terraform_version: ${{ inputs.terraform_version }}
@@ -106,7 +106,7 @@ runs:
         cli_config_credentials_hostname: ${{ inputs.terraform_api }}
  
     - name: Setup Terraform
-      uses: CSVD/gh-actions-setup-terraform@v3.1.2
+      uses: CSVD/gh-actions-setup-terraform@3.1.2
       if: ${{ inputs.setup_terraform && secrets.TFE_TOKEN == '' }}
       with:
         terraform_version: ${{ inputs.terraform_version }}
