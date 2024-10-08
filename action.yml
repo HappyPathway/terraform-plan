@@ -35,24 +35,19 @@ inputs:
 outputs:
   commit_sha:
     description: "Commit SHA"
-    value: ${{ jobs.terraform.outputs.commit_sha }}
+    value: ${{ steps.terraform.outputs.commit_sha }}
   planfile:
     description: "Name of Planfile Artifact"
-    value: ${{ jobs.terraform.outputs.planfile }}
+    value: ${{ steps.terraform.outputs.planfile }}
   pending_changes:
     description: "Are there pending changes?"
-    value: ${{ jobs.terraform.outputs.pending_changes }}
+    value: ${{ steps.terraform.outputs.pending_changes }}
   plan_succeeded:
     description: "Did the plan succeed?"
-    value: ${{ jobs.terraform.outputs.plan_succeeded }}
+    value: ${{ steps.terraform.outputs.plan_succeeded }}
   
 runs:
   using: "composite"
-  outputs:
-      commit_sha: ${{ steps.checkout.outputs.commit }}
-      planfile: ${{ env.planfile }}
-      pending_changes: ${{ steps.plan.outputs.pending_changes }}
-      plan_succeeded: ${{ steps.plan.outputs.plan_succeeded }}
   steps:
     - uses: CSVD/gh-actions-checkout@v4
       id: checkout
