@@ -146,11 +146,17 @@ runs:
       run: |
         echo "TF_WORKSPACE=${{ inputs.workspace }}" >> $GITHUB_ENV
 
-    - name: Set TF_CLI_ARGS
+    - name: Set TF_CLI_ARGS (Varfile)
       shell: bash
       if: ${{ inputs.varfile != '' }}
       run: |
         echo "TF_CLI_ARGS=-var-file=${{ inputs.varfile }} ${{ inputs.plan_args }}" >> $GITHUB_ENV
+
+    - name: Set TF_CLI_ARGS (NonVarfile)
+      shell: bash
+      if: ${{ inputs.varfile == '' }}
+      run: |
+        echo "TF_CLI_ARGS=${{ inputs.plan_args }}" >> $GITHUB_ENV
 
     - name: Terraform Plan
       id: plan
