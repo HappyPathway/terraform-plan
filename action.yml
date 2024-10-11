@@ -154,14 +154,15 @@ runs:
     - name: Set TF_CLI_ARGS (NonVarfile)
       shell: bash
       if: ${{ inputs.varfile == '' }}
+      run: |
         echo "TF_CLI_ARGS='${{ inputs.plan_args }}" >> $GITHUB_ENV
     
     - name: Terraform Init
       id: init
+      shell: bash
       if: ${{ inputs.terraform_init }}
       run: terraform init -upgrade
-      shell: bash
-    
+     
     - name: Terraform Plan
       id: plan
       continue-on-error: true
