@@ -54,6 +54,7 @@ inputs:
   cache_bucket:
     required: true
     description: "S3 Bucket to upload to"
+    default: image-pipeline-assets
   plan_args:
     description: "Additional arguments to pass to terraform plan"
     required: false
