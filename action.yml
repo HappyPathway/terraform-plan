@@ -117,7 +117,6 @@ runs:
         unarchive: false
 
     - name: fix file permissions
-      shell: bash
       if: ${{ inputs.download_cache == 'true' }}
       run: chmod -R 600 .terraform.lock.hcl
       shell: bash
@@ -143,14 +142,12 @@ runs:
     - name: Set Workspace
       shell: bash
       if: ${{ inputs.workspace != '' }}
-      shell: bash
       run: |
         echo "TF_WORKSPACE=${{ inputs.workspace }}" >> $GITHUB_ENV
 
     - name: Set TF_CLI_ARGS (Varfile)
       shell: bash
       if: ${{ inputs.varfile != '' }}
-      shell: bash
       run: |
         echo "TF_CLI_ARGS=-var-file=${{ inputs.varfile }} ${{ inputs.plan_args }}" >> $GITHUB_ENV
 
