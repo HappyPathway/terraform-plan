@@ -1,0 +1,248 @@
+name: "Terraform Plan"
+description: "Validates and Tests Terraform Configuration"
+inputs:
+  inputs:
+  terraform_version:
+    required: true
+    type: string
+  terraform_api:
+    required: true
+    type: string
+  github_username:
+    required: true
+    type: string
+  github_email:
+    required: true
+    type: string
+  github_org:
+    required: true
+    type: string
+  github_server:
+    required: false
+    type: string
+    default: github.com
+  workspace:
+    required: false
+    type: string
+  varfile:
+    required: false
+    type: string
+  autoformat_message:
+    default: "AutoFormat Commit"
+    type: string
+    required: false
+  AWS_ACCESS_KEY_ID:
+    required: false
+    type: string
+  setup_terraform:
+    type: boolean
+    default: false
+  terraform_init:
+    type: boolean
+    default: false
+  download_cache:
+    type: boolean
+    default: false
+  cache:
+    required: false
+    type: string
+  commit_sha:
+    required: false
+    type: string
+
+secrets:
+  TFE_TOKEN:
+    required: true
+  GH_TOKEN:
+    required: true
+  AWS_SECRET_ACCESS_KEY:
+    required: false
+  GOOGLE_CREDENTIALS:
+    required: false
+
+outputs:
+  commit_sha:
+    description: "Commit SHA"
+    value: ${{ jobs.terraform.outputs.commit_sha }}
+  planfile:
+    description: "Name of Planfile Artifact"
+    value: ${{ jobs.terraform.outputs.planfile }}
+  pending_changes:
+    description: "Are there pending changes?"
+    value: ${{ jobs.terraform.outputs.pending_changes }}
+  plan_succeeded:
+    description: "Did the plan succeed?"
+    value: ${{ jobs.terraform.outputs.plan_succeeded }}
+
+outputs:
+  commit_sha:
+    description: "Commit SHA"
+    value: ${{ jobs.terraform.outputs.commit_sha }}
+
+env:
+  GITHUB_OWNER: ${{ inputs.github_org }}
+  GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+  AWS_ACCESS_KEY_ID: ${{ inputs.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+  TFE_TOKEN: ${{ secrets.TFE_TOKEN }}
+  
+runs:
+  using: "composite"
+  outputs:
+      commit_sha: ${{ steps.checkout.outputs.commit }}
+      planfile: ${{ env.planfile }}
+      pending_changes: ${{ steps.plan.outputs.pending_changes }}
+      plan_succeeded: ${{ steps.plan.outputs.plan_succeeded }}
+  steps:
+    - uses: actions/checkout@v4
+      id: checkout
+      with:
+        ref: ${{ inputs.commit_sha == '' && github.head_ref || inputs.commit_sha }}
+        persist-credentials: false
+
+    - uses: actions/download-artifact@master
+      if: ${{ inputs.download_cache }}
+      with:
+        name: ${{ inputs.cache }}
+        path: terraform_data
+
+    - name: mkdir .terraform
+      if: ${{ inputs.download_cache }}
+      run: mkdir .terraform
+      
+    - name: set TF Data Dir
+      if: ${{ inputs.download_cache }}
+      run: mv terraform_data/terraform_dir/* .terraform/
+
+    - name: fix file permissions
+      if: ${{ inputs.download_cache }}
+      run: chmod -R 777 .terraform
+
+    - name: download lockfile
+      uses: actions/download-artifact@master
+      if: ${{ inputs.download_cache }}
+      with:
+        name: terraform_lockfile
+        path: terraform_lockfile
+
+    - name: move lockfile
+      if: ${{ inputs.download_cache }}
+      run: mv terraform_lockfile/.terraform.lock.hcl .
+
+    - name: fix file permissions
+      if: ${{ inputs.download_cache }}
+      run: chmod -R 600 .terraform.lock.hcl
+      
+    - uses: actions/setup-node@v3
+      with:
+        node-version: 16
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3.1.2
+      if: ${{ inputs.setup_terraform }}
+      with:
+        terraform_version: ${{ inputs.terraform_version }}
+        cli_config_credentials_token: ${{ secrets.TFE_TOKEN }}
+        cli_config_credentials_hostname: ${{ inputs.terraform_api }}
+
+    - name: Set Workspace
+      if: ${{ inputs.workspace != '' }}
+      run: |
+        echo "TF_WORKSPACE=${{ inputs.workspace }}" >> $GITHUB_ENV
+
+    - name: Set Varfile
+      if: ${{ inputs.varfile != '' }}
+      run: |
+        echo "TF_CLI_ARGS=-var-file=${{ inputs.varfile }}" >> $GITHUB_ENV
+        
+    - name: Terraform Init
+      id: init
+      if: ${{ inputs.terraform_init }}
+      run: terraform init
+    
+    - name: Generate Plan Name (non-default)
+      id: plan_name_non_default
+      run: |
+        echo planfile=${{ inputs.workspace }}-${{ github.run_id }}-${{ github.run_attempt }} >> $GITHUB_ENV
+        echo planfile=${{ inputs.workspace }}-${{ github.run_id }}-${{ github.run_attempt }} >> $GITHUB_OUTPUT
+      if: ${{ inputs.workspace != '' }}
+
+    - name: Generate Plan Name (default)
+      id: plan_name_default
+      run: |
+        echo planfile=default-${{ github.run_id }}-${{ github.run_attempt }} >> $GITHUB_ENV
+        echo planfile=default-${{ github.run_id }}-${{ github.run_attempt }} >> $GITHUB_OUTPUT
+      if: ${{ inputs.workspace == '' }}
+      
+    - name: Terraform Plan
+      id: plan
+      run: |
+        terraform plan -detailed-exitcode -out=${{ env.planfile }} || echo "using -detailed-exitcode"
+        exit_code=$?
+        if [ $exit_code -eq 2 ]; then
+          echo plan_succeeded=true >> $GITHUB_OUTPUT
+          echo pending_changes=true >> $GITHUB_OUTPUT
+        elif [ $exit_code -eq 0 ]; then
+          echo plan_succeeded=true >> $GITHUB_OUTPUT
+          echo pending_changes=false >> $GITHUB_OUTPUT
+        else
+          echo plan_succeeded=false >> $GITHUB_OUTPUT
+          echo pending_changes=false >> $GITHUB_OUTPUT
+        fi
+
+    - uses: actions/upload-artifact@master
+      name: Archive Planfile
+      if: github.ref == 'refs/heads/main'
+      with:
+        name: ${{ env.planfile }}
+        path: ${{ env.planfile }}
+        include-hidden-files: true
+
+    - name: Update Pull Request
+      uses: actions/github-script@v6
+      if: github.event_name == 'pull_request'
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          // 1. Retrieve existing bot comments for the PR
+          const { data: comments } = await github.rest.issues.listComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+          })
+          const botComment = comments.find(comment => {
+            return comment.user.type === 'Bot' && comment.body.includes('Terraform Plan')
+          })
+
+          // 2. Prepare format of the comment
+          const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
+          #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
+          #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
+          #### Terraform Test \`${{ steps.test.outcome }}\`
+          <details><summary>Test Output</summary>
+    
+          \`\`\`\n
+          ${{ steps.test.outputs.stdout }}
+          \`\`\`
+    
+          </details>
+    
+          *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Working Directory: \`${{ env.tf_actions_working_dir }}\`, Workflow: \`${{ github.workflow }}\`*`;
+    
+          // 3. If we have a comment, update it, otherwise create a new one
+          if (botComment) {
+            github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: botComment.id,
+              body: output
+            })
+          } else {
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })
+          }
