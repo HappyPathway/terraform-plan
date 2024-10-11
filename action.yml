@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 name: "Terraform Pipeline Plan"
 description: "Runs a Terraform Plan"
 inputs:
@@ -53,6 +54,82 @@ runs:
       planfile: ${{ env.planfile }}
       pending_changes: ${{ steps.plan.outputs.pending_changes }}
       plan_succeeded: ${{ steps.plan.outputs.plan_succeeded }}
+=======
+name: "Terraform Plan"
+description: "Validates and Tests Terraform Configuration"
+inputs:
+  terraform_version:
+    description: "Version of Terraform to use"
+    required: true
+  terraform_api:
+    description: "API endpoint for Terraform"
+    required: true
+  github_username:
+    description: "GitHub username"
+    required: true
+  github_email:
+    description: "GitHub email address"
+    required: true
+  github_org:
+    description: "GitHub organization"
+    required: true
+  github_server:
+    description: "GitHub server URL"
+    required: false
+    default: github.com
+  workspace:
+    description: "Workspace name"
+    required: false
+  varfile:
+    description: "Path to the variable file"
+    required: false
+  autoformat_message:
+    description: "Commit message for autoformatting"
+    default: "AutoFormat Commit"
+    required: false
+  AWS_ACCESS_KEY_ID:
+    description: "AWS access key ID"
+    required: false
+  setup_terraform:
+    description: "Flag to setup Terraform"
+    default: "false"
+  terraform_init:
+    description: "Flag to initialize Terraform"
+    default: "false"
+  download_cache:
+    description: "Flag to download cache"
+    default: "false"
+  cache:
+    description: "Cache configuration"
+    required: false
+  commit_sha:
+    description: "Commit SHA"
+    required: false
+  uuid:
+    description: "UUID"
+    required: true
+  cache_bucket:
+    required: true
+    description: "S3 Bucket to upload to"
+  plan_args:
+    description: "Additional arguments to pass to terraform plan"
+    required: false
+outputs:
+  commit_sha:
+    description: "Commit SHA"
+    value: ${{ steps.terraform.outputs.commit_sha }}
+  planfile:
+    description: "Name of Planfile Artifact"
+    value: ${{ steps.terraform.outputs.planfile }}
+  pending_changes:
+    description: "Are there pending changes?"
+    value: ${{ steps.terraform.outputs.pending_changes }}
+  plan_succeeded:
+    description: "Did the plan succeed?"
+    value: ${{ steps.terraform.outputs.plan_succeeded }}
+
+runs:
+  using: "composite"
   steps:
     - uses: actions/checkout@v4
       id: checkout
@@ -60,58 +137,68 @@ runs:
         ref: ${{ inputs.commit_sha == '' && github.head_ref || inputs.commit_sha }}
         persist-credentials: false
 
-    - uses: actions/download-artifact@master
-      if: ${{ inputs.download_cache }}
+    - name: Download Terraform Directory (Workspace)
+      uses: CSVD/s3-download@main
+      if: ${{ inputs.download_cache == 'true' && inputs.workspace != '' }}
       with:
-        name: ${{ inputs.cache }}
-        path: terraform_data
+        bucket: ${{ inputs.cache_bucket }}
+        key: ${{ github.repository }}/${{ inputs.workspace }}/${{ inputs.uuid }}/terraform-dir
+        dest: .terraform
+        unarchive: true
 
-    - name: mkdir .terraform
-      if: ${{ inputs.download_cache }}
-      run: mkdir .terraform
-      
-    - name: set TF Data Dir
-      if: ${{ inputs.download_cache }}
-      run: mv terraform_data/terraform_dir/* .terraform/
+    - name: Download Terraform Directory (Non-Workspace)
+      uses: CSVD/s3-download@main
+      if: ${{ inputs.download_cache == 'true' && inputs.workspace == '' }}
+      with:
+        bucket: ${{ inputs.cache_bucket }}
+        key: ${{ github.repository }}/${{ inputs.uuid }}/terraform-dir
+        dest: .terraform
+        unarchive: true
 
-    - name: fix file permissions
-      if: ${{ inputs.download_cache }}
+    - name: Download Terraform Lockfile (Workspace)
+      uses: CSVD/s3-download@main
+      if: ${{ inputs.download_cache == 'true' && inputs.workspace != '' }}
+      with:
+        bucket: ${{ inputs.cache_bucket }}
+        key: ${{ github.repository }}/${{ inputs.workspace }}/${{ inputs.uuid }}/terraform.lock.hcl
+        dest: .terraform.lock.hcl
+        unarchive: false
+
+    - name: Download Terraform Lockfile (Non-Workspace)
+      uses: CSVD/s3-download@main
+      if: ${{ inputs.download_cache == 'true' && inputs.workspace == '' }}
+      with:
+        bucket: ${{ inputs.cache_bucket }}
+        key: ${{ github.repository }}/${{ inputs.uuid }}/terraform.lock.hcl
+        dest: .terraform.lock.hcl
+        unarchive: false
+
+    - name: fix .terraform dir permissions
+      shell: bash
+      if: ${{ inputs.download_cache == 'true' }}
       run: chmod -R 777 .terraform
 
-    - name: download lockfile
-      uses: actions/download-artifact@master
-      if: ${{ inputs.download_cache }}
-      with:
-        name: terraform_lockfile
-        path: terraform_lockfile
-
-    - name: move lockfile
-      if: ${{ inputs.download_cache }}
-      run: mv terraform_lockfile/.terraform.lock.hcl .
-
     - name: fix file permissions
-      if: ${{ inputs.download_cache }}
+      shell: bash
+      if: ${{ inputs.download_cache == 'true' }}
       run: chmod -R 600 .terraform.lock.hcl
-      
-    - uses: actions/setup-node@v3
-      with:
-        node-version: 16
 
     - name: Setup Terraform
-      uses: CSVD/gh-actions-setup-terraform@v3.1.2
-      if: ${{ inputs.setup_terraform && secrets.TFE_TOKEN != '' }}
+      uses: CSVD/gh-actions-setup-terraform@v2
+      if: ${{ inputs.setup_terraform && env.TFE_TOKEN != '' }}
       with:
         terraform_version: ${{ inputs.terraform_version }}
-        cli_config_credentials_token: ${{ secrets.TFE_TOKEN }}
+        cli_config_credentials_token: ${{ env.TFE_TOKEN }}
         cli_config_credentials_hostname: ${{ inputs.terraform_api }}
- 
+
     - name: Setup Terraform
-      uses: CSVD/gh-actions-setup-terraform@v3.1.2
-      if: ${{ inputs.setup_terraform && secrets.TFE_TOKEN == '' }}
+      uses: CSVD/gh-actions-setup-terraform@v2
+      if: ${{ inputs.setup_terraform && env.TFE_TOKEN == '' }}
       with:
         terraform_version: ${{ inputs.terraform_version }}
 
     - name: Set Workspace
+      shell: bash
       if: ${{ inputs.workspace != '' }}
       run: |
         echo "TF_WORKSPACE=${{ inputs.workspace }}" >> $GITHUB_ENV
@@ -128,27 +215,22 @@ runs:
         
     - name: Terraform Init
       id: init
+      shell: bash
       if: ${{ inputs.terraform_init }}
       run: terraform init -upgrade
     
-    - name: Generate Plan Name (non-default)
-      id: plan_name_non_default
+    - name: Set TF_CLI_ARGS
+      shell: bash
+      if: ${{ inputs.varfile != '' }}
       run: |
-        echo planfile=${{ inputs.workspace }}-${{ github.run_id }}-${{ github.run_attempt }} >> $GITHUB_ENV
-        echo planfile=${{ inputs.workspace }}-${{ github.run_id }}-${{ github.run_attempt }} >> $GITHUB_OUTPUT
-      if: ${{ inputs.workspace != '' }}
+        echo "TF_CLI_ARGS=-var-file=${{ inputs.varfile }} ${{ inputs.plan_args }}" >> $GITHUB_ENV
 
-    - name: Generate Plan Name (default)
-      id: plan_name_default
-      run: |
-        echo planfile=default-${{ github.run_id }}-${{ github.run_attempt }} >> $GITHUB_ENV
-        echo planfile=default-${{ github.run_id }}-${{ github.run_attempt }} >> $GITHUB_OUTPUT
-      if: ${{ inputs.workspace == '' }}
-      
     - name: Terraform Plan
       id: plan
+      continue-on-error: true
+      shell: bash
       run: |
-        terraform plan -detailed-exitcode -out=${{ env.planfile }} || echo "using -detailed-exitcode"
+        terraform plan -detailed-exitcode -out=terraform_plan
         exit_code=$?
         if [ $exit_code -eq 2 ]; then
           echo plan_succeeded=true >> $GITHUB_OUTPUT
@@ -161,19 +243,20 @@ runs:
           echo pending_changes=false >> $GITHUB_OUTPUT
         fi
 
-    - uses: CSVD/gh-upload-artifact@master
+    - uses: CSVD/s3-upload@main
       name: Archive Planfile
       if: github.ref == 'refs/heads/main'
       with:
-        name: ${{ env.planfile }}
-        path: ${{ env.planfile }}
-        include-hidden-files: true
+        source: terraform_plan
+        bucket: ${{ inputs.cache_bucket }}
+        archive: true
+        key: ${{ github.repository }}/${{ inputs.workspace }}/${{ inputs.uuid }}/terraform.plan
 
     - name: Update Pull Request
       uses: actions/github-script@v6
       if: github.event_name == 'pull_request'
       with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
+        github-token: ${{ env.GITHUB_TOKEN }}
         script: |
           // 1. Retrieve existing bot comments for the PR
           const { data: comments } = await github.rest.issues.listComments({
@@ -190,10 +273,10 @@ runs:
           #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
           #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
           #### Terraform Test \`${{ steps.test.outcome }}\`
-          <details><summary>Test Output</summary>
+          <details><summary>Plan Output</summary>
     
           \`\`\`\n
-          ${{ steps.test.outputs.stdout }}
+          ${{ steps.plan.outputs.stdout }}
           \`\`\`
     
           </details>
