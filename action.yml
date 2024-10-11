@@ -57,6 +57,9 @@ inputs:
   plan_args:
     description: "Additional arguments to pass to terraform plan"
     required: false
+  init_args:
+    description: "Additional arguments to pass to terraform init"
+    required: false
 outputs:
   commit_sha:
     description: "Commit SHA"
@@ -120,11 +123,10 @@ runs:
       shell: bash
       if: ${{ inputs.download_cache == 'true' }}
       run: chmod -R 600 .terraform.lock.hcl
-      shell: bash
-      
-#     - uses: actions/setup-node@v3
-#       with:
-#         node-version: 16
+
+    #     - uses: actions/setup-node@v3
+    #       with:
+    #         node-version: 16
 
     - name: Setup Terraform
       uses: CSVD/gh-actions-setup-terraform@v2
@@ -143,28 +145,27 @@ runs:
     - name: Set Workspace
       shell: bash
       if: ${{ inputs.workspace != '' }}
-      shell: bash
       run: |
         echo "TF_WORKSPACE=${{ inputs.workspace }}" >> $GITHUB_ENV
 
     - name: Set TF_CLI_ARGS (Varfile)
       shell: bash
       if: ${{ inputs.varfile != '' }}
-      shell: bash
       run: |
         echo "TF_CLI_ARGS=-var-file=${{ inputs.varfile }} ${{ inputs.plan_args }}" >> $GITHUB_ENV
 
     - name: Set TF_CLI_ARGS (NonVarfile)
       shell: bash
       if: ${{ inputs.varfile == '' }}
+      run: |
         echo "TF_CLI_ARGS='${{ inputs.plan_args }}" >> $GITHUB_ENV
-    
+
     - name: Terraform Init
       id: init
       if: ${{ inputs.terraform_init }}
-      run: terraform init -upgrade
+      run: terraform init -upgrade ${{ inputs.init_args }}
       shell: bash
-    
+
     - name: Terraform Plan
       id: plan
       continue-on-error: true
@@ -184,7 +185,7 @@ runs:
         fi
 
     - uses: CSVD/s3-upload@main
-      name: Archive Planfile (Workspace)
+      name: Archive Planfile (NonWorkspace)
       if: ${{ github.ref == 'refs/heads/main' && inputs.workspace != '' }}
       with:
         source: terraform_plan
