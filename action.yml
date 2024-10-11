@@ -1,60 +1,3 @@
-<<<<<<< HEAD
-name: "Terraform Pipeline Plan"
-description: "Runs a Terraform Plan"
-inputs:
-  terraform_version:
-    required: true
-    type: string
-  terraform_api:
-    required: false
-    type: string
-  tf_cli_args:
-    required: false
-    type: string
-  workspace:
-    required: false
-    type: string
-  varfile:
-    required: false
-    type: string
-  setup_terraform:
-    type: boolean
-    default: false
-  terraform_init:
-    type: boolean
-    default: false
-  download_cache:
-    type: boolean
-    default: false
-  cache:
-    required: false
-    type: string
-  commit_sha:
-    required: false
-    type: string
-
-outputs:
-  commit_sha:
-    description: "Commit SHA"
-    value: ${{ jobs.terraform.outputs.commit_sha }}
-  planfile:
-    description: "Name of Planfile Artifact"
-    value: ${{ jobs.terraform.outputs.planfile }}
-  pending_changes:
-    description: "Are there pending changes?"
-    value: ${{ jobs.terraform.outputs.pending_changes }}
-  plan_succeeded:
-    description: "Did the plan succeed?"
-    value: ${{ jobs.terraform.outputs.plan_succeeded }}
-  
-runs:
-  using: "composite"
-  outputs:
-      commit_sha: ${{ steps.checkout.outputs.commit }}
-      planfile: ${{ env.planfile }}
-      pending_changes: ${{ steps.plan.outputs.pending_changes }}
-      plan_succeeded: ${{ steps.plan.outputs.plan_succeeded }}
-=======
 name: "Terraform Plan"
 description: "Validates and Tests Terraform Configuration"
 inputs:
@@ -203,22 +146,6 @@ runs:
       run: |
         echo "TF_WORKSPACE=${{ inputs.workspace }}" >> $GITHUB_ENV
 
-    - name: Set Varfile
-      if: ${{ inputs.varfile != '' }}
-      run: |
-        echo "TF_CLI_ARGS='${{ env.TF_CLI_ARGS }} -var-file=${{ inputs.varfile }}" >> $GITHUB_ENV
-    
-    - name: Set TF_CLI_ARGS
-      if: ${{ inputs.varfile != '' }}
-      run: |
-        echo "TF_CLI_ARGS='${{ env.TF_CLI_ARGS }} ${{ inputs.tf_cli_args }}" >> $GITHUB_ENV
-        
-    - name: Terraform Init
-      id: init
-      shell: bash
-      if: ${{ inputs.terraform_init }}
-      run: terraform init -upgrade
-    
     - name: Set TF_CLI_ARGS
       shell: bash
       if: ${{ inputs.varfile != '' }}
@@ -273,16 +200,16 @@ runs:
           #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
           #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
           #### Terraform Test \`${{ steps.test.outcome }}\`
-          <details><summary>Plan Output</summary>
-    
+          <details><summary>Test Output</summary>
+
           \`\`\`\n
-          ${{ steps.plan.outputs.stdout }}
+          ${{ steps.test.outputs.stdout }}
           \`\`\`
-    
+
           </details>
-    
+
           *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Working Directory: \`${{ env.tf_actions_working_dir }}\`, Workflow: \`${{ github.workflow }}\`*`;
-    
+
           // 3. If we have a comment, update it, otherwise create a new one
           if (botComment) {
             github.rest.issues.updateComment({
