@@ -84,36 +84,18 @@ runs:
         ref: ${{ inputs.commit_sha == '' && github.head_ref || inputs.commit_sha }}
         persist-credentials: false
 
-    - name: Download Terraform Directory (Workspace)
+    - name: Download Terraform Directory
       uses: CSVD/s3-download@main
-      if: ${{ inputs.download_cache == 'true' && inputs.workspace != '' }}
+      if: ${{ inputs.download_cache == 'true' }}
       with:
         bucket: ${{ inputs.cache_bucket }}
         cache_key: ${{ inputs.cache_key }}/terraform-dir
-        dest: .terraform
+        dest: .
         unarchive: true
 
-    - name: Download Terraform Directory (Non-Workspace)
+    - name: Download Terraform Lockfile
       uses: CSVD/s3-download@main
-      if: ${{ inputs.download_cache == 'true' && inputs.workspace == '' }}
-      with:
-        bucket: ${{ inputs.cache_bucket }}
-        cache_key: ${{ inputs.cache_key }}/terraform-dir
-        dest: .terraform
-        unarchive: true
-
-    - name: Download Terraform Lockfile (Workspace)
-      uses: CSVD/s3-download@main
-      if: ${{ inputs.download_cache == 'true' && inputs.workspace != '' }}
-      with:
-        bucket: ${{ inputs.cache_bucket }}
-        cache_key: ${{ inputs.cache_key }}/terraform.lock.hcl
-        dest: .terraform.lock.hcl
-        unarchive: false
-
-    - name: Download Terraform Lockfile (Non-Workspace)
-      uses: CSVD/s3-download@main
-      if: ${{ inputs.download_cache == 'true' && inputs.workspace == '' }}
+      if: ${{ inputs.download_cache == 'true' }}
       with:
         bucket: ${{ inputs.cache_bucket }}
         cache_key: ${{ inputs.cache_key }}/terraform.lock.hcl
