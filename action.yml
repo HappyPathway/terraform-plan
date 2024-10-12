@@ -164,7 +164,7 @@ runs:
     - name: Terraform Init
       id: init
       shell: bash
-      if: ${{ inputs.terraform_init }}
+      if: ${{ inputs.terraform_init == 'true' }}
       run: terraform init -upgrade
      
     - name: Terraform Plan
@@ -192,16 +192,7 @@ runs:
         source: terraform_plan
         bucket: ${{ inputs.cache_bucket }}
         archive: true
-        key: ${{ github.repository }}/${{ inputs.workspace }}/${{ inputs.uuid }}/terraform.plan
-
-    - uses: CSVD/s3-upload@main
-      name: Archive Planfile (Workspace)
-      if: ${{ github.ref == 'refs/heads/main' && inputs.workspace == '' }}
-      with:
-        source: terraform_plan
-        bucket: ${{ inputs.cache_bucket }}
-        archive: true
-        key: ${{ github.repository }}/${{ inputs.workspace }}/${{ inputs.uuid }}/terraform.plan
+        key: ${{ inputs.cache_key }}/terraform.plan
 
     - name: Update Pull Request
       uses: CSVD/gh-actions-github-script@v6
