@@ -175,14 +175,14 @@ runs:
         archive: false
         key: ${{ inputs.cache_key }}/terraform.plan
 
-    - name: Show Terraform Plan
+    - name: Terraform Plan
       shell: bash
-      id: state_show
-      run: echo "TF_PLAN=$(terraform show -no-color terraform_plan)" >> $GITHUB_ENV
+      id: plan_output
+      run: terraform show -no-color terraform_plan
       
-    - name: Update Pull Request
-      uses: CSVD/gh-actions-github-script@v7
-      if: github.event_name == 'pull_request'
+    - uses: actions/github-script@v7
+      env:
+        PLAN: "terraform\n${{ steps.plan_output.outputs.stdout }}"
       with:
         github-token: ${{ env.GITHUB_TOKEN }}
         script: |
@@ -197,12 +197,12 @@ runs:
           })
 
           // 2. Prepare format of the comment
-          const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
-          #### Terraform Plan Pending Change"s \`${{ steps.plan.outputs.pending_changes }}\`
-          <details><summary>Test Output</summary>
+          const output = #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
+
+          <details><summary>Show Plan</summary>
 
           \`\`\`\n
-          ${{ env.TF_PLAN }}
+          ${process.env.PLAN}
           \`\`\`
 
           </details>
