@@ -54,11 +54,12 @@ inputs:
   cache_bucket:
     required: true
     description: "S3 Bucket to upload to"
+    default: image-pipeline-assets
+  cache_key:
+    required: true
+    description: "S3 Cache Key"
   plan_args:
     description: "Additional arguments to pass to terraform plan"
-    required: false
-  init_args:
-    description: "Additional arguments to pass to terraform init"
     required: false
 outputs:
   commit_sha:
@@ -83,50 +84,32 @@ runs:
         ref: ${{ inputs.commit_sha == '' && github.head_ref || inputs.commit_sha }}
         persist-credentials: false
 
-    - name: Download Terraform Directory (Workspace)
+    - name: Download Terraform Directory
       uses: CSVD/s3-download@main
-      if: ${{ inputs.download_cache == 'true' && inputs.workspace != '' }}
+      if: ${{ inputs.download_cache == 'true' }}
       with:
         bucket: ${{ inputs.cache_bucket }}
-        key: ${{ github.repository }}/${{ inputs.workspace }}/${{ inputs.uuid }}/terraform-dir
-        dest: .terraform
+        cache_key: ${{ inputs.cache_key }}/terraform-dir
+        dest: .
         unarchive: true
 
-    - name: Download Terraform Directory (Non-Workspace)
+    - name: Download Terraform Lockfile
       uses: CSVD/s3-download@main
-      if: ${{ inputs.download_cache == 'true' && inputs.workspace == '' }}
+      if: ${{ inputs.download_cache == 'true' }}
       with:
         bucket: ${{ inputs.cache_bucket }}
-        key: ${{ github.repository }}/${{ inputs.uuid }}/terraform-dir
-        dest: .terraform
-        unarchive: true
-
-    - name: Download Terraform Lockfile (Workspace)
-      uses: CSVD/s3-download@main
-      if: ${{ inputs.download_cache == 'true' && inputs.workspace != '' }}
-      with:
-        bucket: ${{ inputs.cache_bucket }}
-        key: ${{ github.repository }}/${{ inputs.workspace }}/${{ inputs.uuid }}/terraform.lock.hcl
-        dest: .terraform.lock.hcl
-        unarchive: false
-
-    - name: Download Terraform Lockfile (Non-Workspace)
-      uses: CSVD/s3-download@main
-      if: ${{ inputs.download_cache == 'true' && inputs.workspace == '' }}
-      with:
-        bucket: ${{ inputs.cache_bucket }}
-        key: ${{ github.repository }}/${{ inputs.uuid }}/terraform.lock.hcl
+        cache_key: ${{ inputs.cache_key }}/terraform.lock.hcl
         dest: .terraform.lock.hcl
         unarchive: false
 
     - name: fix file permissions
-      shell: bash
       if: ${{ inputs.download_cache == 'true' }}
       run: chmod -R 600 .terraform.lock.hcl
-
-    #     - uses: actions/setup-node@v3
-    #       with:
-    #         node-version: 16
+      shell: bash
+      
+#     - uses: actions/setup-node@v3
+#       with:
+#         node-version: 16
 
     - name: Setup Terraform
       uses: CSVD/gh-actions-setup-terraform@v2
@@ -159,19 +142,19 @@ runs:
       if: ${{ inputs.varfile == '' }}
       run: |
         echo "TF_CLI_ARGS='${{ inputs.plan_args }}" >> $GITHUB_ENV
-
+    
     - name: Terraform Init
       id: init
-      if: ${{ inputs.terraform_init }}
-      run: terraform init -upgrade ${{ inputs.init_args }}
       shell: bash
-
+      if: ${{ inputs.terraform_init == 'true' }}
+      run: terraform init -upgrade
+     
     - name: Terraform Plan
       id: plan
       continue-on-error: true
       shell: bash
       run: |
-        terraform plan -detailed-exitcode -out=terraform_plan
+        terraform plan -detailed-exitcode -out=tf.plan
         exit_code=$?
         if [ $exit_code -eq 2 ]; then
           echo plan_succeeded=true >> $GITHUB_OUTPUT
@@ -185,67 +168,55 @@ runs:
         fi
 
     - uses: CSVD/s3-upload@main
-      name: Archive Planfile (NonWorkspace)
-      if: ${{ github.ref == 'refs/heads/main' && inputs.workspace != '' }}
+      name: Archive Planfile
       with:
-        source: terraform_plan
+        source: tf.plan
         bucket: ${{ inputs.cache_bucket }}
-        archive: true
-        key: ${{ github.repository }}/${{ inputs.workspace }}/${{ inputs.uuid }}/terraform.plan
+        archive: false
+        key: ${{ inputs.cache_key }}/terraform.plan
+        
+#     - uses: CSVD/gh-actions-github-script@v7
+#       env:
+#         PLAN: "${{ steps.plan.outputs.stdout }}"
+#       with:
+#         github-token: ${{ env.GITHUB_TOKEN }}
+#         script: |
+#           // 1. Retrieve existing bot comments for the PR
+#           const { data: comments } = await github.rest.issues.listComments({
+#             owner: context.repo.owner,
+#             repo: context.repo.repo,
+#             issue_number: context.issue.number,
+#           })
+#           const botComment = comments.find(comment => {
+#             return comment.user.type === 'Bot' && comment.body.includes('Terraform Plan')
+#           })
 
-    - uses: CSVD/s3-upload@main
-      name: Archive Planfile (Workspace)
-      if: ${{ github.ref == 'refs/heads/main' && inputs.workspace == '' }}
-      with:
-        source: terraform_plan
-        bucket: ${{ inputs.cache_bucket }}
-        archive: true
-        key: ${{ github.repository }}/${{ inputs.workspace }}/${{ inputs.uuid }}/terraform.plan
+#           // 2. Prepare format of the comment
+#           const output = #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
 
-    - name: Update Pull Request
-      uses: CSVD/gh-actions-github-script@v6
-      if: github.event_name == 'pull_request'
-      with:
-        github-token: ${{ env.GITHUB_TOKEN }}
-        script: |
-          // 1. Retrieve existing bot comments for the PR
-          const { data: comments } = await github.rest.issues.listComments({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            issue_number: context.issue.number,
-          })
-          const botComment = comments.find(comment => {
-            return comment.user.type === 'Bot' && comment.body.includes('Terraform Plan')
-          })
+#           <details><summary>Show Plan</summary>
 
-          // 2. Prepare format of the comment
-          const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
-          #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
-          #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
-          #### Terraform Test \`${{ steps.test.outcome }}\`
-          <details><summary>Test Output</summary>
+#           \`\`\`\n
+#           ${process.env.PLAN}
+#           \`\`\`
 
-          \`\`\`\n
-          ${{ steps.test.outputs.stdout }}
-          \`\`\`
+#           </details>
 
-          </details>
+#           *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Working Directory: \`${{ env.tf_actions_working_dir }}\`, Workflow: \`${{ github.workflow }}\`*`;
 
-          *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Working Directory: \`${{ env.tf_actions_working_dir }}\`, Workflow: \`${{ github.workflow }}\`*`;
-
-          // 3. If we have a comment, update it, otherwise create a new one
-          if (botComment) {
-            github.rest.issues.updateComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              comment_id: botComment.id,
-              body: output
-            })
-          } else {
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: output
-            })
-          }
+#           // 3. If we have a comment, update it, otherwise create a new one
+#           if (botComment) {
+#             github.rest.issues.updateComment({
+#               owner: context.repo.owner,
+#               repo: context.repo.repo,
+#               comment_id: botComment.id,
+#               body: output
+#             })
+#           } else {
+#             github.rest.issues.createComment({
+#               issue_number: context.issue.number,
+#               owner: context.repo.owner,
+#               repo: context.repo.repo,
+#               body: output
+#             })
+#           }
