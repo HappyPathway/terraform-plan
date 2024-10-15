@@ -168,14 +168,18 @@ runs:
         fi
 
     - uses: CSVD/s3-upload@main
-      name: Archive Planfile (Workspace)
-      if: ${{ github.ref == 'refs/heads/main' && inputs.workspace != '' }}
+      name: Archive Planfile
       with:
         source: terraform_plan
         bucket: ${{ inputs.cache_bucket }}
         archive: false
         key: ${{ inputs.cache_key }}/terraform.plan
 
+    - name: Show Terraform Plan
+      shell: bash
+      id: state_show
+      run: echo "TF_PLAN=$(terraform show -no-color terraform_plan)" >> $GITHUB_ENV
+      
     - name: Update Pull Request
       uses: CSVD/gh-actions-github-script@v7
       if: github.event_name == 'pull_request'
@@ -194,13 +198,11 @@ runs:
 
           // 2. Prepare format of the comment
           const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
-          #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
-          #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
-          #### Terraform Test \`${{ steps.test.outcome }}\`
+          #### Terraform Plan Pending Change"s \`${{ steps.plan.outputs.pending_changes }}\`
           <details><summary>Test Output</summary>
 
           \`\`\`\n
-          ${{ steps.test.outputs.stdout }}
+          ${{ env.TF_PLAN }}
           \`\`\`
 
           </details>
