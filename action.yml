@@ -174,21 +174,10 @@ runs:
         bucket: ${{ inputs.cache_bucket }}
         archive: false
         key: ${{ inputs.cache_key }}/terraform.plan
-     
-    - name: Unset TF_CLI_ARGS
-      shell: bash
-      run: |
-        echo "TF_CLI_ARGS=''" >> $GITHUB_ENV
-        
-    - name: Terraform Plan
-      id: plan_output
-      shell: bash
-      run: |
-        echo "tf_plan=$(/opt/tfenv/bin/terraform show -no-color tf.plan)" >> $GITHUB_ENV
         
     - uses: CSVD/gh-actions-github-script@v7
       env:
-        PLAN: "${{ env.tf_plan }}"
+        PLAN: "${{ steps.plan.outputs.stdout }}"
       with:
         github-token: ${{ env.GITHUB_TOKEN }}
         script: |
