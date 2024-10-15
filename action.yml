@@ -154,7 +154,7 @@ runs:
       continue-on-error: true
       shell: bash
       run: |
-        terraform plan -detailed-exitcode -out=terraform_plan
+        terraform plan -detailed-exitcode -out=tf.plan
         exit_code=$?
         if [ $exit_code -eq 2 ]; then
           echo plan_succeeded=true >> $GITHUB_OUTPUT
@@ -170,7 +170,7 @@ runs:
     - uses: CSVD/s3-upload@main
       name: Archive Planfile
       with:
-        source: terraform_plan
+        source: tf.plan
         bucket: ${{ inputs.cache_bucket }}
         archive: false
         key: ${{ inputs.cache_key }}/terraform.plan
@@ -178,7 +178,7 @@ runs:
     - name: Terraform Plan
       shell: bash
       id: plan_output
-      run: terraform show -no-color terraform_plan
+      run: terraform show -no-color tf.plan
       
     - uses: CSVD/gh-actions-github-script@v7
       env:
