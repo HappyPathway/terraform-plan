@@ -173,7 +173,7 @@ runs:
       with:
         source: terraform_plan
         bucket: ${{ inputs.cache_bucket }}
-        archive: true
+        archive: false
         key: ${{ inputs.cache_key }}/terraform.plan
 
     - name: Update Pull Request
