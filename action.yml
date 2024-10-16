@@ -7,31 +7,11 @@ inputs:
   terraform_api:
     description: "API endpoint for Terraform"
     required: true
-  github_username:
-    description: "GitHub username"
-    required: true
-  github_email:
-    description: "GitHub email address"
-    required: true
-  github_org:
-    description: "GitHub organization"
-    required: true
-  github_server:
-    description: "GitHub server URL"
-    required: false
-    default: github.com
   workspace:
     description: "Workspace name"
     required: false
   varfile:
     description: "Path to the variable file"
-    required: false
-  autoformat_message:
-    description: "Commit message for autoformatting"
-    default: "AutoFormat Commit"
-    required: false
-  AWS_ACCESS_KEY_ID:
-    description: "AWS access key ID"
     required: false
   setup_terraform:
     description: "Flag to setup Terraform"
@@ -42,15 +22,9 @@ inputs:
   download_cache:
     description: "Flag to download cache"
     default: "false"
-  cache:
-    description: "Cache configuration"
-    required: false
   commit_sha:
     description: "Commit SHA"
     required: false
-  uuid:
-    description: "UUID"
-    required: true
   cache_bucket:
     required: true
     description: "S3 Bucket to upload to"
@@ -106,10 +80,10 @@ runs:
       if: ${{ inputs.download_cache == 'true' }}
       run: chmod -R 600 .terraform.lock.hcl
       shell: bash
-      
-#     - uses: actions/setup-node@v3
-#       with:
-#         node-version: 16
+
+    #     - uses: actions/setup-node@v3
+    #       with:
+    #         node-version: 16
 
     - name: Setup Terraform
       uses: CSVD/gh-actions-setup-terraform@v2
@@ -131,24 +105,24 @@ runs:
       run: |
         echo "TF_WORKSPACE=${{ inputs.workspace }}" >> $GITHUB_ENV
 
-    - name: Set TF_CLI_ARGS (Varfile)
+    - name: Set TF_CLI_ARGS_plan (Varfile)
       shell: bash
       if: ${{ inputs.varfile != '' }}
       run: |
-        echo "TF_CLI_ARGS=-var-file=${{ inputs.varfile }} ${{ inputs.plan_args }}" >> $GITHUB_ENV
+        echo "TF_CLI_ARGS_plan=-var-file=${{ inputs.varfile }} ${{ inputs.plan_args }}" >> $GITHUB_ENV
 
-    - name: Set TF_CLI_ARGS (NonVarfile)
+    - name: Set TF_CLI_ARGS_plan (NonVarfile)
       shell: bash
       if: ${{ inputs.varfile == '' }}
       run: |
-        echo "TF_CLI_ARGS='${{ inputs.plan_args }}" >> $GITHUB_ENV
-    
+        echo "TF_CLI_ARGS_plan='${{ inputs.plan_args }}" >> $GITHUB_ENV
+
     - name: Terraform Init
       id: init
       shell: bash
       if: ${{ inputs.terraform_init == 'true' }}
       run: terraform init -upgrade
-     
+
     - name: Terraform Plan
       id: plan
       continue-on-error: true
@@ -174,49 +148,54 @@ runs:
         bucket: ${{ inputs.cache_bucket }}
         archive: false
         key: ${{ inputs.cache_key }}/terraform.plan
-        
-#     - uses: CSVD/gh-actions-github-script@v7
-#       env:
-#         PLAN: "${{ steps.plan.outputs.stdout }}"
-#       with:
-#         github-token: ${{ env.GITHUB_TOKEN }}
-#         script: |
-#           // 1. Retrieve existing bot comments for the PR
-#           const { data: comments } = await github.rest.issues.listComments({
-#             owner: context.repo.owner,
-#             repo: context.repo.repo,
-#             issue_number: context.issue.number,
-#           })
-#           const botComment = comments.find(comment => {
-#             return comment.user.type === 'Bot' && comment.body.includes('Terraform Plan')
-#           })
 
-#           // 2. Prepare format of the comment
-#           const output = #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
+    - name: Show plan
+      run: echo "terraform_plan=$(terraform show -no-color tf.plan)" >> $GITHUB_ENV
+      shell: bash
 
-#           <details><summary>Show Plan</summary>
+    - uses: CSVD/gh-actions-github-script@v7
+      if: ${{ github.event_name == 'pull_request' }}
+      env:
+        PLAN: "${{ env.terraform_plan }}"
+      with:
+        github-token: ${{ env.GITHUB_TOKEN }}
+        script: |
+          // 1. Retrieve existing bot comments for the PR
+          const { data: comments } = await github.rest.issues.listComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+          })
+          const botComment = comments.find(comment => {
+            return comment.user.type === 'Bot' && comment.body.includes('Terraform Plan')
+          })
 
-#           \`\`\`\n
-#           ${process.env.PLAN}
-#           \`\`\`
+          // 2. Prepare format of the comment
+          const output = #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
 
-#           </details>
+          <details><summary>Show Plan</summary>
 
-#           *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Working Directory: \`${{ env.tf_actions_working_dir }}\`, Workflow: \`${{ github.workflow }}\`*`;
+          \`\`\`\n
+          ${process.env.PLAN}
+          \`\`\`
 
-#           // 3. If we have a comment, update it, otherwise create a new one
-#           if (botComment) {
-#             github.rest.issues.updateComment({
-#               owner: context.repo.owner,
-#               repo: context.repo.repo,
-#               comment_id: botComment.id,
-#               body: output
-#             })
-#           } else {
-#             github.rest.issues.createComment({
-#               issue_number: context.issue.number,
-#               owner: context.repo.owner,
-#               repo: context.repo.repo,
-#               body: output
-#             })
-#           }
+          </details>
+
+          *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Working Directory: \`${{ env.tf_actions_working_dir }}\`, Workflow: \`${{ github.workflow }}\`*`;
+
+          // 3. If we have a comment, update it, otherwise create a new one
+          if (botComment) {
+            github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: botComment.id,
+              body: output
+            })
+          } else {
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })
+          }
