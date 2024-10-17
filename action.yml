@@ -38,16 +38,16 @@ inputs:
 outputs:
   commit_sha:
     description: "Commit SHA"
-    value: ${{ steps.terraform.outputs.commit_sha }}
+    value: ${{ inputs.commit_sha == '' && github.head_ref || inputs.commit_sha }}
   planfile:
     description: "Name of Planfile Artifact"
-    value: ${{ steps.terraform.outputs.planfile }}
+    value: ${{ steps.plan.outputs.planfile }}
   pending_changes:
     description: "Are there pending changes?"
-    value: ${{ steps.terraform.outputs.pending_changes }}
+    value: ${{ steps.plan.outputs.pending_changes }}
   plan_succeeded:
     description: "Did the plan succeed?"
-    value: ${{ steps.terraform.outputs.plan_succeeded }}
+    value: ${{ steps.plan.outputs.plan_succeeded }}
 
 runs:
   using: "composite"
